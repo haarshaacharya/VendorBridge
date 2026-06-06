@@ -23,18 +23,46 @@ exports.getDashboardStats = async (req, res) => {
         });
         const totalSpend = spendAggregation._sum.grandTotal || 0;
 
-        // Recent Purchase Orders for the table
-        const recentPOs = await prisma.purchaseOrder.findMany({
+        // Overdue invoices (status = 'Overdue')
+        const overdueInvoices = await prisma.invoice.count({
+            where: { status: 'Overdue' }
+        });
+
+        // Recent Purchase Orders — mapped to match frontend field names
+        const recentPOsRaw = await prisma.purchaseOrder.findMany({
             take: 5,
             orderBy: { createdAt: 'desc' },
-            include: { quotation: { include: { vendor: true } } }
+            include: {
+                quotation: {
+                    include: {
+                        vendor: true,
+                        rfq: { select: { title: true, category: true, id: true } }
+                    }
+                },
+                invoice: { select: { status: true, grandTotal: true } }
+            }
         });
+
+        // Map to frontend-compatible shape (matches StoreContext PO structure)
+        const recentPOs = recentPOsRaw.map((po) => ({
+            poNo: po.poNumber,           // frontend uses poNo
+            rfqId: po.quotation.rfq?.id || '',
+            vendorName: po.quotation.vendor.companyName,  // frontend uses vendorName
+            amount: po.quotation.totalAmount,              // frontend uses amount
+            status: po.status === 'APPROVED' ? 'Approved' : po.status,
+            createdAt: po.createdAt.toISOString().split('T')[0],
+            dueDate: po.invoice
+                ? new Date(new Date(po.createdAt).getTime() + 30 * 24 * 60 * 60 * 1000)
+                    .toISOString().split('T')[0]
+                : null
+        }));
 
         res.status(200).json({
             activeRFQs,
             pendingApprovals,
             totalPOs,
             totalSpend,
+            overdueInvoices,
             recentPOs
         });
     } catch (error) {

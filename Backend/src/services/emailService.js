@@ -33,6 +33,57 @@ const generatePDFBuffer = (invoice, vendor, po) => {
     });
 };
 
+// Send RFQ notification to vendors
+exports.sendRFQNotification = async (rfq, vendorEmails) => {
+    try {
+        if (!vendorEmails || vendorEmails.length === 0) {
+            console.log("No vendor emails to send RFQ notification to");
+            return false;
+        }
+
+        const rfqDetails = rfq.items
+            .map((item, idx) => `${idx + 1}. ${item.description} - Qty: ${item.quantity} ${item.unit}`)
+            .join('\n');
+
+        const deadlineDate = new Date(rfq.deadline).toLocaleDateString('en-IN');
+
+        const mailOptions = {
+            from: process.env.EMAIL_USER,
+            to: vendorEmails.join(', '),
+            subject: `New RFQ: ${rfq.title} - VendorBridge`,
+            html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                    <h2 style="color: #10b981;">New Request for Quotation</h2>
+                    <p>Dear Vendor,</p>
+                    <p>A new Request for Quotation (RFQ) has been issued. Please find the details below:</p>
+                    
+                    <div style="background: #f3f4f6; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                        <p><strong>RFQ Title:</strong> ${rfq.title}</p>
+                        <p><strong>Category:</strong> ${rfq.category || 'N/A'}</p>
+                        <p><strong>Deadline:</strong> ${deadlineDate}</p>
+                        <p><strong>Description:</strong> ${rfq.description || 'No description provided'}</p>
+                    </div>
+
+                    <h3 style="color: #374151;">Line Items:</h3>
+                    <pre style="background: #f9fafb; padding: 10px; border-radius: 5px; overflow-x: auto;">${rfqDetails}</pre>
+
+                    <p style="margin-top: 20px;">Please submit your quotation by the deadline mentioned above.</p>
+                    <p>If you have any questions, please contact the procurement team.</p>
+                    
+                    <p style="margin-top: 30px; color: #6b7280;">Best regards,<br/>VendorBridge Team</p>
+                </div>
+            `
+        };
+
+        await transporter.sendMail(mailOptions);
+        console.log(`RFQ notification sent to ${vendorEmails.length} vendor(s)`);
+        return true;
+    } catch (error) {
+        console.error("RFQ notification email failed:", error);
+        return false;
+    }
+};
+
 exports.sendInvoiceEmail = async (invoice, vendor, po) => {
     try {
         const pdfBuffer = await generatePDFBuffer(invoice, vendor, po);

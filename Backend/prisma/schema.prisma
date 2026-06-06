@@ -1,0 +1,114 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+enum Role {
+  ADMIN
+  OFFICER
+  MANAGER
+  VENDOR
+}
+
+enum Status {
+  PENDING
+  APPROVED
+  REJECTED
+  ACTIVE
+  BLOCKED
+}
+
+model User {
+  id        String   @id @default(uuid())
+  name      String
+  email     String   @unique
+  password  String
+  role      Role     @default(VENDOR)
+  createdAt DateTime @default(now())
+
+  // Relations
+  vendorProfile Vendor?
+  activityLogs  ActivityLog[]
+}
+
+model Vendor {
+  id          String   @id @default(uuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id])
+  companyName String
+  category    String
+  gstNumber   String   @unique
+  contactNo   String
+  status      Status   @default(PENDING)
+  
+  quotations  Quotation[]
+}
+
+model RFQ {
+  id          String    @id @default(uuid())
+  title       String
+  description String?
+  deadline    DateTime
+  status      Status    @default(ACTIVE)
+  createdAt   DateTime  @default(now())
+
+  items       RFQItem[]
+  quotations  Quotation[]
+}
+
+model RFQItem {
+  id          String @id @default(uuid())
+  rfqId       String
+  rfq         RFQ    @relation(fields: [rfqId], references: [id])
+  description String
+  quantity    Int
+  unit        String
+}
+
+model Quotation {
+  id           String   @id @default(uuid())
+  rfqId        String
+  rfq          RFQ      @relation(fields: [rfqId], references: [id])
+  vendorId     String
+  vendor       Vendor   @relation(fields: [vendorId], references: [id])
+  deliveryDays Int
+  totalAmount  Float
+  status       Status   @default(PENDING)
+  remarks      String?
+  createdAt    DateTime @default(now())
+
+  purchaseOrder PurchaseOrder?
+}
+
+model PurchaseOrder {
+  id          String    @id @default(uuid())
+  poNumber    String    @unique // e.g., PO-2026-001
+  quotationId String    @unique
+  quotation   Quotation @relation(fields: [quotationId], references: [id])
+  status      Status    @default(APPROVED)
+  createdAt   DateTime  @default(now())
+
+  invoice     Invoice?
+}
+
+model Invoice {
+  id            String        @id @default(uuid())
+  poId          String        @unique
+  purchaseOrder PurchaseOrder @relation(fields: [poId], references: [id])
+  invoiceNumber String        @unique
+  taxAmount     Float
+  grandTotal    Float
+  status        String        @default("Pending Payment")
+  createdAt     DateTime      @default(now())
+}
+
+model ActivityLog {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  action      String   
+  timestamp   DateTime @default(now())
+}

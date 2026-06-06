@@ -5,15 +5,50 @@ const jwt = require('jsonwebtoken');
 
 const prisma = new PrismaClient();
 
+// Valid roles in DB — map frontend role strings to backend enum
+const ROLE_MAP = {
+    'admin':    'ADMIN',
+    'officer':  'OFFICER',
+    'manager':  'MANAGER',
+    'vendor':   'VENDOR',
+    // Frontend RegisterCard sends these — map them to closest backend role
+    'developer':  'OFFICER',
+    'designer':   'OFFICER',
+    'analyst':    'OFFICER',
+    'student':    'VENDOR',
+    'other':      'VENDOR',
+};
+
 exports.register = async (req, res) => {
     try {
-        const { name, email, password, role } = req.body;
+        // Frontend sends: firstName + lastName separately, or name as single field
+        const {
+            name,
+            firstName,
+            lastName,
+            email,
+            password,
+            role,
+            phone,       // extra frontend fields — stored but not in DB schema (ignored gracefully)
+            country,
+            additionalInfo
+        } = req.body;
+
+        // Compose full name — support both single 'name' and 'firstName'+'lastName'
+        const fullName = name || `${firstName || ''} ${lastName || ''}`.trim() || 'Unknown';
+
+        if (!email || !password) {
+            return res.status(400).json({ error: "Email and password are required." });
+        }
 
         // Check if user exists
         const existingUser = await prisma.user.findUnique({ where: { email } });
         if (existingUser) {
-            return res.status(400).json({ error: "User already exists with this email" });
+            return res.status(400).json({ error: "User already exists with this email." });
         }
+
+        // Map role string to valid enum — default VENDOR
+        const resolvedRole = ROLE_MAP[(role || '').toLowerCase()] || 'VENDOR';
 
         // Hash password
         const hashedPassword = await bcrypt.hash(password, 10);
@@ -21,10 +56,10 @@ exports.register = async (req, res) => {
         // Create user
         const user = await prisma.user.create({
             data: {
-                name,
+                name: fullName,
                 email,
                 password: hashedPassword,
-                role: role || 'VENDOR'
+                role: resolvedRole
             }
         });
 
@@ -33,10 +68,10 @@ exports.register = async (req, res) => {
             await prisma.vendor.create({
                 data: {
                     userId: user.id,
-                    companyName: `${name}'s Company`,
+                    companyName: `${fullName}'s Company`,
                     category: "Uncategorized",
                     gstNumber: `PENDING-${Date.now()}`,
-                    contactNo: "Pending"
+                    contactNo: phone || "Pending"
                 }
             });
         }
@@ -50,18 +85,25 @@ exports.register = async (req, res) => {
 
 exports.login = async (req, res) => {
     try {
-        const { email, password } = req.body;
+        // Frontend sends 'username' field but it contains email value
+        // Accept both 'email' and 'username' keys
+        const { email, username, password } = req.body;
+        const resolvedEmail = email || username;
+
+        if (!resolvedEmail || !password) {
+            return res.status(400).json({ error: "Email and password are required." });
+        }
 
         // Find user
-        const user = await prisma.user.findUnique({ where: { email } });
+        const user = await prisma.user.findUnique({ where: { email: resolvedEmail } });
         if (!user) {
-            return res.status(404).json({ error: "User not found" });
+            return res.status(404).json({ error: "User not found." });
         }
 
         // Check password
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) {
-            return res.status(401).json({ error: "Invalid credentials" });
+            return res.status(401).json({ error: "Invalid credentials." });
         }
 
         // Generate JWT Token

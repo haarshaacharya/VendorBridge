@@ -48,12 +48,14 @@ model Vendor {
 }
 
 model RFQ {
-  id          String    @id @default(uuid())
-  title       String
-  description String?
-  deadline    DateTime
-  status      Status    @default(ACTIVE)
-  createdAt   DateTime  @default(now())
+  id               String    @id @default(uuid())
+  title            String
+  description      String?
+  deadline         DateTime
+  status           Status    @default(ACTIVE)
+  category         String?
+  assignedVendors  String[]  @default([])
+  createdAt        DateTime  @default(now())
 
   items       RFQItem[]
   quotations  Quotation[]
@@ -69,16 +71,19 @@ model RFQItem {
 }
 
 model Quotation {
-  id           String   @id @default(uuid())
-  rfqId        String
-  rfq          RFQ      @relation(fields: [rfqId], references: [id])
-  vendorId     String
-  vendor       Vendor   @relation(fields: [vendorId], references: [id])
-  deliveryDays Int
-  totalAmount  Float
-  status       Status   @default(PENDING)
-  remarks      String?
-  createdAt    DateTime @default(now())
+  id            String   @id @default(uuid())
+  rfqId         String
+  rfq           RFQ      @relation(fields: [rfqId], references: [id])
+  vendorId      String
+  vendor        Vendor   @relation(fields: [vendorId], references: [id])
+  deliveryDays  Int
+  totalAmount   Float
+  gstPercent    Float    @default(18)
+  vendorRating  Float?
+  paymentTerms  String?
+  status        Status   @default(PENDING)
+  remarks       String?
+  createdAt     DateTime @default(now())
 
   purchaseOrder PurchaseOrder?
 }
@@ -110,5 +115,6 @@ model ActivityLog {
   userId      String
   user        User     @relation(fields: [userId], references: [id])
   action      String   
+  type        String   @default("general")
   timestamp   DateTime @default(now())
 }

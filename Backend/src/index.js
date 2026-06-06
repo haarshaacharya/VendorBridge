@@ -11,6 +11,7 @@ const approvalRoutes = require('./routes/approvalRoutes');
 const analyticsRoutes = require('./routes/analyticsRoutes');
 const logRoutes = require('./routes/logRoutes');
 const invoiceRoutes = require('./routes/invoiceRoutes');
+const vendorRoutes = require('./routes/vendorRoutes');
 
 const app = express();
 const prisma = new PrismaClient();
@@ -28,6 +29,7 @@ app.use('/api/approval', approvalRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/logs', logRoutes);
 app.use('/api/invoice', invoiceRoutes);
+app.use('/api/vendors', vendorRoutes);
 
 // Base Route
 app.get('/', (req, res) => {

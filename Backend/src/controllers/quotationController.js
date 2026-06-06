@@ -1,11 +1,24 @@
 // src/controllers/quotationController.js
 const { PrismaClient } = require('@prisma/client');
+const { createLog } = require('./logController');
 const prisma = new PrismaClient();
 
 // 1. Vendor submits a quotation
 exports.submitQuotation = async (req, res) => {
     try {
-        const { rfqId, deliveryDays, totalAmount, remarks } = req.body;
+        // Frontend sends: grandTotal (as totalAmount), notes (as remarks), gstPercent, vendorRating, paymentTerms
+        const {
+            rfqId,
+            deliveryDays,
+            totalAmount,   // frontend may also send as grandTotal
+            grandTotal,
+            remarks,
+            notes,         // frontend sends 'notes', we accept both
+            gstPercent,
+            vendorRating,
+            paymentTerms
+        } = req.body;
+
         const userId = req.user.userId;
 
         // Check if logged-in user is a registered Vendor
@@ -20,16 +33,25 @@ exports.submitQuotation = async (req, res) => {
             return res.status(400).json({ error: "RFQ is closed or deadline has passed." });
         }
 
-        // Create quotation
+        // Create quotation — accept both field name variants from frontend
         const quotation = await prisma.quotation.create({
             data: {
                 rfqId,
                 vendorId: vendor.id,
                 deliveryDays,
-                totalAmount,
-                remarks
+                totalAmount: totalAmount || grandTotal,
+                gstPercent: gstPercent || 18,
+                vendorRating: vendorRating || null,
+                paymentTerms: paymentTerms || null,
+                remarks: remarks || notes || null
             }
         });
+
+        await createLog(
+            userId,
+            `Quotation submitted by ${vendor.companyName} for RFQ ${rfqId}. Amount: ${totalAmount || grandTotal}.`,
+            'rfq'
+        );
 
         res.status(201).json({ message: "Quotation submitted successfully", quotation });
     } catch (error) {
@@ -59,8 +81,11 @@ exports.compareQuotations = async (req, res) => {
         }
 
         // Add a flag to highlight the lowest price (L1 Vendor)
+        // Also map fields to match frontend expectations
         const comparedData = quotations.map((q, index) => ({
             ...q,
+            vendorName: q.vendor.companyName,  // frontend uses vendorName
+            grandTotal: q.totalAmount,           // frontend uses grandTotal
             isLowestPrice: index === 0
         }));
 

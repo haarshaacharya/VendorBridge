@@ -1,0 +1,1 @@
+export default function RFQs(){return <div>RFQs Page</div>}

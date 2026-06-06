@@ -1,0 +1,1 @@
+export default function Quotations(){return <div>Quotations Page</div>}
